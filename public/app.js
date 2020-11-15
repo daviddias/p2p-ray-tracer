@@ -55,7 +55,7 @@ async function start () {
     const peerId = await PeerId.create({ bits: 256, keyType: 'ed25519' })
     node = await IPFS.create({
       init: {
-        privateKey: peerId,
+        privateKey: peerId
       },
       repo: 'ipfs-' + Math.random(),
       config: {
@@ -176,58 +176,56 @@ const publishHash = (hash) => {
    Peers handling
    =========================================================================== */
 
-   async function connectToPeer (event) {
-    const multiaddr = $multiaddrInput.value
-  
-    if (!multiaddr) {
-      throw new Error('No multiaddr was inserted.')
-    }
-  
-    await node.swarm.connect(multiaddr)
-  
-    onSuccess(`Successfully connected to peer.`)
-    $multiaddrInput.value = ''
+async function connectToPeer (event) {
+  const multiaddr = $multiaddrInput.value
+
+  if (!multiaddr) {
+    throw new Error('No multiaddr was inserted.')
   }
-  
-  async function refreshPeerList () {
-    const peers = await node.swarm.peers()
-  
-    const peersAsHtml = peers.reverse()
-      .map((peer) => {
-        if (peer.addr) {
-          const addr = peer.addr.toString()
-  
-          if (addr.indexOf('/p2p/') >= 0) {
-            return addr
-          } else {
-            return addr + '/p2p/' + peer.peer
-          }
-        }
-      })
-      .map((addr) => {
-        return `<tr><td>${addr}</td></tr>`
-      }).join('')
-  
-    $peersList.innerHTML = peersAsHtml
-  }
-  
-  async function refreshWorkspacePeerList () {
-    const peers = await node.pubsub.peers(workspace)
-  
-    const peersAsHtml = peers.reverse()
-      .map((addr) => {
-        return `<tr><td>${addr}</td></tr>`
-      }).join('')
-  
-    $workspacePeersList.innerHTML = peersAsHtml
-  }
+
+  await node.swarm.connect(multiaddr)
+
+  onSuccess('Successfully connected to peer.')
+  $multiaddrInput.value = ''
+}
+
+async function refreshPeerList () {
+  const peers = await node.swarm.peers()
+
+  const peersAsHtml = peers.reverse()
+    .map((peer) => {
+      if (!peer.addr) {
+        return 'error: Peer did not contain valid address'
+      }
+      const addr = peer.addr.toString()
+
+      if (addr.indexOf('/p2p/') >= 0) {
+        return addr
+      } else {
+        return addr + '/p2p/' + peer.peer
+      }
+    })
+    .map((addr) => {
+      return `<tr><td>${addr}</td></tr>`
+    }).join('')
+
+  $peersList.innerHTML = peersAsHtml
+}
+
+async function refreshWorkspacePeerList () {
+  const peers = await node.pubsub.peers(workspace)
+
+  const peersAsHtml = peers.reverse()
+    .map((addr) => {
+      return `<tr><td>${addr}</td></tr>`
+    }).join('')
+
+  $workspacePeersList.innerHTML = peersAsHtml
+}
 
 /* ===========================================================================
    Ray Tracing
    =========================================================================== */
-
-
-
 
 /* ===========================================================================
    Files handling
@@ -236,7 +234,7 @@ const publishHash = (hash) => {
 const sendFileList = () => Promise.all(FILES.map(publishHash))
 
 const updateProgress = (bytesLoaded) => {
-  let percent = 100 - ((bytesLoaded / fileSize) * 100)
+  const percent = 100 - ((bytesLoaded / fileSize) * 100)
 
   $progressBar.style.transform = `translateX(${-percent}%)`
 }
@@ -333,8 +331,6 @@ async function onDrop (event) {
     await getFile()
   }
 }
-
-
 
 /* ===========================================================================
    Error handling
