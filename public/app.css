@@ -63,6 +63,8 @@ main {
 
 button {
   padding: 0.625em 1.5em;
+  margin-left: 0.25em;
+  margin-right: 0.25em;
   border: 2px solid #69C4CD;
   border-radius: 2px;
   background-color: #69C4CD;
@@ -154,6 +156,7 @@ table tbody tr:hover {
 .box {
   display: flex;
   flex-direction: column;
+  margin: 0.5em;
   margin-bottom: 1em;
   padding: 1em;
   border-radius: 2px;
@@ -211,15 +214,26 @@ table tbody tr:hover {
     color: #0CB892;
 }
 
-/* Peers
-   =========================================================================== */
+/* Workspace    ============================================================== */
+
+#workspace {
+  flex: 0 0 calc(35% - 1em);
+}
+
+/* Ray Tracing  ============================================================== */
+
+#raytracing {
+  flex: 0 0 65%;
+  min-height: 500px;
+}
+
+/* Peers        ============================================================== */
 
 #peers {
   flex: 0 0 calc(35% - 1em);
 }
 
-/* Files
-   =========================================================================== */
+/* Files        ============================================================== */
 
 #files {
   flex: 0 0 65%;

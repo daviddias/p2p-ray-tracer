@@ -2,46 +2,17 @@
 'use strict'
 
 const IPFS = require('ipfs')
+const fs = require('fs')
+const srt = require('simple-raytracer')
 const PeerId = require('peer-id')
 const all = require('it-all')
 const uint8ArrayConcat = require('uint8arrays/concat')
 const uint8ArrayFromString = require('uint8arrays/from-string')
 
-// Node
-const $nodeId = document.querySelector('.node-id')
-const $nodeAddresses = document.querySelector('.node-addresses')
-const $logs = document.querySelector('#logs')
-
-// WorkSpace Peers
-const $wPeers = document.querySelector('#w-peers')
-const $workspacePeersList = $wPeers.querySelector('#workspace-peers')
-
-// Network Peers
-const $networkPeers = document.querySelector('#network-peers')
-const $peersList = $networkPeers.querySelector('#connected-peers')
-const $multiaddrInput = document.querySelector('#multiaddr-input')
-const $connectButton = document.querySelector('#peer-btn')
-
-// Files
-const $cidInput = document.querySelector('#cid-input')
-const $fetchButton = document.querySelector('#fetch-btn')
-const $dragContainer = document.querySelector('#drag-container')
-const $progressBar = document.querySelector('#progress-bar')
-const $fileHistory = document.querySelector('#file-history tbody')
-const $emptyRow = document.querySelector('.empty-row')
 // Misc
 const $allDisabledButtons = document.querySelectorAll('button:disabled')
 const $allDisabledInputs = document.querySelectorAll('input:disabled')
 const $allDisabledElements = document.querySelectorAll('.disabled')
-
-// Workspace inputs
-const $workspaceInput = document.querySelector('#workspace-input')
-const $workspaceBtn = document.querySelector('#workspace-btn')
-
-let FILES = []
-let workspace = (location.hash || 'default-workspace').replace(/^#/, '')
-
-let fileSize = 0
 
 let node
 let info
@@ -50,7 +21,11 @@ let info
    Start the IPFS node
    =========================================================================== */
 
-async function start () {
+const $nodeId = document.querySelector('.node-id')
+const $nodeAddresses = document.querySelector('.node-addresses')
+const $logs = document.querySelector('#logs')
+
+async function startNode () {
   if (!node) {
     const peerId = await PeerId.create({ bits: 256, keyType: 'ed25519' })
     node = await IPFS.create({
@@ -89,6 +64,7 @@ async function start () {
 
     onSuccess('Node is ready.')
 
+    // Refresh Network Peers
     setInterval(async () => {
       try {
         await refreshPeerList()
@@ -98,6 +74,7 @@ async function start () {
       }
     }, 1000)
 
+    // Refresh Workspace Peers
     setInterval(async () => {
       try {
         await refreshWorkspacePeerList()
@@ -150,6 +127,22 @@ const messageHandler = (message) => {
   }
 }
 
+const publishHash = (hash) => {
+  const data = uint8ArrayFromString(hash)
+  return node.pubsub.publish(workspace, data)
+}
+
+/* ===========================================================================
+   Workspace handling
+   =========================================================================== */
+
+const $workspace = document.querySelector('#workspace')
+const $workspaceInput = $workspace.querySelector('#workspace-input')
+const $workspaceBtn = $workspace.querySelector('#workspace-btn')
+const $workspacePeersList = $workspace.querySelector('#workspace-peers')
+
+let workspace = (location.hash || 'default-workspace').replace(/^#/, '')
+
 const subscribeToWorkspace = async () => {
   await node.pubsub.subscribe(workspace, messageHandler)
   const msg = `Subscribed to workspace '${workspace}'`
@@ -167,14 +160,96 @@ const workspaceUpdated = async () => {
   await subscribeToWorkspace()
 }
 
-const publishHash = (hash) => {
-  const data = uint8ArrayFromString(hash)
-  return node.pubsub.publish(workspace, data)
+async function refreshWorkspacePeerList () {
+  const peers = await node.pubsub.peers(workspace)
+
+  const peersAsHtml = peers.reverse()
+    .map((addr) => {
+      return `<tr><td>${addr}</td></tr>`
+    }).join('')
+
+  $workspacePeersList.innerHTML = peersAsHtml
 }
 
+
 /* ===========================================================================
-   Peers handling
+   Ray Tracing
    =========================================================================== */
+
+const buf = fs.readFileSync('./scenes/pokeball.rt', 'utf8')
+const canvas = document.querySelector('#mycanvas')
+const $rayTraceLocalButton = document.querySelector('#ray-trace-local-btn')
+const $rayTraceDistributedButton = document.querySelector('#ray-trace-distributed-btn')
+
+function rayTraceLocal() {
+  const scene = srt.prepareScene.byBuffer(buf)
+
+  // number of units per split (total: N_UNITS * N_UNITS)
+  const N_UNITS = 50
+
+  // break into separete tasks
+  const tasks = srt.prepareTasks({
+    split: N_UNITS,
+    width: scene.global.width,
+    height: scene.global.height
+  })
+
+  const startTime = Date.now()
+
+  // take each task and execute a ray trace on the world with it
+  const results = tasks.map((task) => {
+    return {
+      begin_x: task.begin_x,
+      end_x: task.end_x,
+      begin_y: task.begin_y,
+      end_y: task.end_y,
+      animation: task.animation,
+      data: srt.runTask(scene, task).data
+    }
+  })
+
+  const endTime = Date.now()
+  onSuccess('Ray Tracing: ' + (endTime - startTime) + ' ms')
+
+  // prepare our canvas
+  const canvasContext = canvas.getContext('2d')
+  canvas.width = canvas.width // clear canvas
+  canvas.width = scene.global.width
+  canvas.height = scene.global.height
+
+  // create the image for one frame
+  const frameN = 0
+  const frames = []
+  frames[frameN] = canvasContext.createImageData(canvas.width, canvas.height)
+
+  // get each result of the ray trace and inject on canvas obj
+  results.map(function (r) {
+    let i = 0
+    for (let y = r.begin_y; y < r.end_y; y++) {
+      for (let x = r.begin_x; x < r.end_x; x++) {
+        let index = (y * canvas.width + x) * 4
+        frames[frameN].data[index++] = r.data[i++]
+        frames[frameN].data[index++] = r.data[i++]
+        frames[frameN].data[index++] = r.data[i++]
+        frames[frameN].data[index++] = 255
+      }
+    }
+  })
+
+  // reload canvas with new data
+  canvasContext.putImageData(frames[frameN], 0, 0)
+}
+
+
+/* ===========================================================================
+   Network Peers handling
+   =========================================================================== */
+
+// Network Peers
+const $networkPeers = document.querySelector('#network-peers')
+const $peersList = $networkPeers.querySelector('#connected-peers')
+const $multiaddrInput = document.querySelector('#multiaddr-input')
+const $connectButton = document.querySelector('#peer-btn')
 
 async function connectToPeer (event) {
   const multiaddr = $multiaddrInput.value
@@ -212,24 +287,20 @@ async function refreshPeerList () {
   $peersList.innerHTML = peersAsHtml
 }
 
-async function refreshWorkspacePeerList () {
-  const peers = await node.pubsub.peers(workspace)
-
-  const peersAsHtml = peers.reverse()
-    .map((addr) => {
-      return `<tr><td>${addr}</td></tr>`
-    }).join('')
-
-  $workspacePeersList.innerHTML = peersAsHtml
-}
-
-/* ===========================================================================
-   Ray Tracing
-   =========================================================================== */
-
 /* ===========================================================================
    Files handling
    =========================================================================== */
+
+// Files
+const $cidInput = document.querySelector('#cid-input')
+const $fetchButton = document.querySelector('#fetch-btn')
+const $dragContainer = document.querySelector('#drag-container')
+const $progressBar = document.querySelector('#progress-bar')
+const $fileHistory = document.querySelector('#file-history tbody')
+const $emptyRow = document.querySelector('.empty-row')
+
+let FILES = []
+let fileSize = 0
 
 const sendFileList = () => Promise.all(FILES.map(publishHash))
 
@@ -365,9 +436,9 @@ const startApplication = () => {
   // Setup event listeners
   $dragContainer.addEventListener('dragenter', onDragEnter)
   $dragContainer.addEventListener('dragover', onDragEnter)
-  $dragContainer.addEventListener('drop', async e => {
+  $dragContainer.addEventListener('drop', async (ev) => {
     try {
-      await onDrop(e)
+      await onDrop(ev)
     } catch (err) {
       err.message = `Failed to add files: ${err.message}`
       onError(err)
@@ -390,11 +461,32 @@ const startApplication = () => {
       onError(err)
     }
   })
+
+  $rayTraceLocalButton.addEventListener('click', () => {
+    try {
+      rayTraceLocal()
+    } catch (err) {
+      err.message = `Failed to run local ray trace: ${err.message}`
+      onError(err)
+    }
+  })
+
+  $rayTraceDistributedButton.addEventListener('click', () => {
+    try {
+      console.log('not implemented yet')
+    } catch (err) {
+      err.message = `Failed to run distributed ray trace: ${err.message}`
+      onError(err)
+    }
+  })
+
+
+
   $workspaceBtn.addEventListener('click', () => {
     window.location.hash = $workspaceInput.value
   })
 
-  start()
+  startNode()
 }
 
 startApplication()

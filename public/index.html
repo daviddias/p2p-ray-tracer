@@ -31,19 +31,19 @@
           <div><pre id="logs" class="success">Initializing node...</pre></div>
         </div>
 
-        <div>
-          <h3>Workspace</h3>
-          <div class="input-button">
-            <input id="workspace-input" type="text" placeholder="Enter workspace name" disabled />
-            <button id="workspace-btn" disabled>Join</button>
-          </div>
-        </div>
       </div>
 
 
       <div class="columns">
-        <div id="w-peers" class="box disabled">
-          <h2>Workspace Peers</h2>
+        <div id="workspace" class="box disabled">
+          <h2>Workspace</h2>
+
+          <div>
+            <div class="input-button">
+              <input id="workspace-input" type="text" placeholder="Enter workspace name" disabled />
+              <button id="workspace-btn" disabled>Join</button>
+            </div>
+          </div>
 
           <table>
             <thead>
@@ -57,6 +57,13 @@
 
         <div id="ray-tracer" class="box disabled">
           <h2>Ray Tracing</h2>
+
+          <div class="input-button">
+            <button id="ray-trace-local-btn" disabled>Run Local</button>
+            <button id="ray-trace-distributed-btn" disabled>Run Distributed</button>
+          </div>
+
+          <canvas id="mycanvas"></canvas>
         </div>
       </div>
 
